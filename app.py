@@ -65,7 +65,7 @@ st.markdown("""
 st.markdown("""
 <div class="main-header">
     <h1>🔔 Sistem Peringatan Dini Risiko Pemasok</h1>
-    <p style="margin:0; opacity:0.9;">Berbasis XGBoost dengan 5 Fitur Utama | Supply Chain Risk Management</p>
+    <p style="margin:0; opacity:0.9;">Berbasis XGBoost dengan 9 Fitur | Supply Chain Risk Management</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -74,38 +74,30 @@ st.markdown("""
 # ==========================================
 @st.cache_resource
 def load_model():
-    model_file = 'model_xgb_5fitur_ok.pkl'
-    scaler_file = 'scaler_5fitur_ok.pkl'
+    model_file = 'model_xgb_9fitur.pkl'
     
-    if os.path.exists(model_file) and os.path.exists(scaler_file):
+    if os.path.exists(model_file):
         model = joblib.load(model_file)
-        scaler = joblib.load(scaler_file)
-        return model, scaler
+        return model
     else:
         st.error("""
-        ❌ **File model atau scaler tidak ditemukan!**
+        ❌ **File model tidak ditemukan!**
         
         **Solusi:**
-        1. Pastikan file `model_xgb_5fitur_ok.pkl` dan `scaler_5fitur_ok.pkl` ada di folder yang sama dengan `app.py`.
-        2. Atau upload kedua file di bawah ini:
+        1. Pastikan file `model_xgb_9fitur.pkl` ada di folder yang sama dengan `app.py`.
+        2. Atau upload file model di bawah ini:
         """)
         
-        col_up1, col_up2 = st.columns(2)
-        with col_up1:
-            uploaded_model = st.file_uploader("Upload file model (.pkl)", type=['pkl'], key='model_upload')
-        with col_up2:
-            uploaded_scaler = st.file_uploader("Upload file scaler (.pkl)", type=['pkl'], key='scaler_upload')
+        uploaded_model = st.file_uploader("Upload file model (.pkl)", type=['pkl'], key='model_upload')
         
-        if uploaded_model and uploaded_scaler:
+        if uploaded_model:
             with open(model_file, 'wb') as f:
                 f.write(uploaded_model.getbuffer())
-            with open(scaler_file, 'wb') as f:
-                f.write(uploaded_scaler.getbuffer())
             st.success("✅ File berhasil diupload! Silakan refresh halaman.")
             st.stop()
-        return None, None
+        return None
 
-model, scaler = load_model()
+model = load_model()
 if model is None:
     st.stop()
 
@@ -122,16 +114,20 @@ st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", widt
 st.sidebar.header("📥 Input Data Pemasok")
 
 with st.sidebar.form("input_form", clear_on_submit=False):
-    st.markdown("**Masukkan skor pemasok (0 - 1):**")
+    st.markdown("**Masukkan data pemasok:**")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        financial = st.slider("💰 Financial", 0.0, 1.0, 0.7, 0.01, help="Stabilitas keuangan pemasok")
-        delivery = st.slider("🚚 Delivery", 0.0, 1.0, 0.7, 0.01, help="Ketepatan waktu pengiriman")
-        quality = st.slider("✅ Quality", 0.0, 1.0, 0.7, 0.01, help="Kepatuhan kualitas produk")
-    with col2:
-        regulatory = st.slider("📜 Regulatory", 0.0, 1.0, 0.7, 0.01, help="Kepatuhan terhadap regulasi")
-        sustainability = st.slider("🌿 Sustainability", 0.0, 1.0, 0.7, 0.01, help="Skor keberlanjutan")
+    financial = st.slider("💰 Financial Stability", 0.0, 1.0, 0.7, 0.01, help="Stabilitas keuangan pemasok (0-1)")
+    delivery = st.slider("🚚 Delivery Performance", 0.0, 1.0, 0.7, 0.01, help="Ketepatan waktu pengiriman (0-1)")
+    quality = st.slider("✅ Quality Compliance", 0.0, 1.0, 0.7, 0.01, help="Kepatuhan kualitas produk (0-1)")
+    regulatory = st.slider("📜 Regulatory Adherence", 0.0, 1.0, 0.7, 0.01, help="Kepatuhan terhadap regulasi (0-1)")
+    sustainability = st.slider("🌿 Sustainability Score", 0.0, 1.0, 0.7, 0.01, help="Skor keberlanjutan (0-1)")
+    
+    st.markdown("---")
+    st.markdown("**Metrik Tambahan:**")
+    past_risk = st.slider("⚠️ Past Risk Level", 0.0, 1.0, 0.3, 0.01, help="Tingkat risiko masa lalu (0-1)")
+    erp_transactions = st.number_input("💻 ERP Transactions", min_value=0, max_value=1000, value=300, step=1, help="Jumlah transaksi ERP")
+    incidents = st.number_input("🚨 Incidents Count", min_value=0, max_value=50, value=2, step=1, help="Jumlah insiden")
+    mcdm_score = st.slider("📊 MCDM Score", 0.0, 1.0, 0.6, 0.01, help="Skor MCDM (0-1)")
     
     submitted = st.form_submit_button("🔍 Prediksi Risiko", use_container_width=True)
 
@@ -139,18 +135,22 @@ with st.sidebar.form("input_form", clear_on_submit=False):
 # 5. LOGIKA PREDIKSI (jika tombol ditekan)
 # ==========================================
 if submitted:
-    # Input array
-    input_data = np.array([[financial, delivery, quality, regulatory, sustainability]])
+    # Input array (9 features)
+    input_data = pd.DataFrame([{
+        'Financial_Stability_Score': financial,
+        'Delivery_Performance_Score': delivery,
+        'Quality_Compliance_Score': quality,
+        'Regulatory_Adherence_Score': regulatory,
+        'Sustainability_Score': sustainability,
+        'Past_Risk_Level': past_risk,
+        'ERP_Transactions': erp_transactions,
+        'Incidents_Count': incidents,
+        'MCDM_Score': mcdm_score
+    }])
     
-    # Normalisasi
-    feature_names = ['Financial_Stability_Score', 'Delivery_Performance_Score', 
-                     'Quality_Compliance_Score', 'Regulatory_Adherence_Score', 
-                     'Sustainability_Score']
-    input_scaled = scaler.transform(pd.DataFrame(input_data, columns=feature_names))
-    
-    # Prediksi
-    prediksi = model.predict(input_scaled)[0]
-    proba = model.predict_proba(input_scaled)[0]
+    # Prediksi langsung tanpa scaling
+    prediksi = model.predict(input_data)[0]
+    proba = model.predict_proba(input_data)[0]
     proba_low = float(proba[0])
     proba_high = float(proba[1])
     
@@ -196,26 +196,59 @@ if submitted:
     st.markdown("---")
     st.subheader("📋 Detail Skor Pemasok")
     scores = {
-        'Fitur': ['💰 Financial', '🚚 Delivery', '✅ Quality', '📜 Regulatory', '🌿 Sustainability'],
-        'Skor': [financial, delivery, quality, regulatory, sustainability],
+        'Fitur': [
+            '💰 Financial Stability', 
+            '🚚 Delivery Performance', 
+            '✅ Quality Compliance', 
+            '📜 Regulatory Adherence', 
+            '🌿 Sustainability Score',
+            '⚠️ Past Risk Level',
+            '💻 ERP Transactions',
+            '🚨 Incidents Count',
+            '📊 MCDM Score'
+        ],
+        'Nilai': [
+            financial, 
+            delivery, 
+            quality, 
+            regulatory, 
+            sustainability,
+            past_risk,
+            erp_transactions,
+            incidents,
+            mcdm_score
+        ],
         'Status': []
     }
-    for s in scores['Skor']:
-        if s >= 0.7:
-            scores['Status'].append('🟢 Baik')
-        elif s >= 0.4:
-            scores['Status'].append('🟡 Sedang')
+    for fit, val in zip(scores['Fitur'], scores['Nilai']):
+        if 'Transactions' in fit or 'Incidents' in fit:
+            scores['Status'].append('⚪ N/A (Numerik)')
+        elif 'Past Risk' in fit:
+            if val <= 0.3:
+                scores['Status'].append('🟢 Rendah')
+            elif val <= 0.6:
+                scores['Status'].append('🟡 Sedang')
+            else:
+                scores['Status'].append('🔴 Tinggi')
         else:
-            scores['Status'].append('🔴 Buruk')
+            if val >= 0.7:
+                scores['Status'].append('🟢 Baik')
+            elif val >= 0.4:
+                scores['Status'].append('🟡 Sedang')
+            else:
+                scores['Status'].append('🔴 Buruk')
     df_scores = pd.DataFrame(scores)
     st.dataframe(df_scores, use_container_width=True, hide_index=True)
     
     # ========== FEATURE IMPORTANCE ==========
     st.markdown("---")
     st.subheader("📊 Faktor Penyebab Risiko (Feature Importance)")
-    short_names = ['Financial', 'Delivery', 'Quality', 'Regulatory', 'Sustainability']
+    feature_display_names = [
+        'Financial', 'Delivery', 'Quality', 'Regulatory', 'Sustainability',
+        'Past Risk', 'ERP Trans.', 'Incidents', 'MCDM'
+    ]
     importance = model.feature_importances_
-    feat_imp = pd.Series(importance, index=short_names).sort_values(ascending=False)
+    feat_imp = pd.Series(importance, index=feature_display_names).sort_values(ascending=False)
     fig, ax = plt.subplots(figsize=(10, 5))
     bars = ax.barh(feat_imp.index, feat_imp.values, color='coral')
     ax.set_xlabel('Tingkat Pengaruh')
@@ -230,13 +263,13 @@ if submitted:
     st.caption("Grafik di bawah menunjukkan pengaruh setiap fitur terhadap hasil prediksi. Panah ke kanan (merah) = meningkatkan risiko High, panah ke kiri (biru) = menurunkan risiko.")
     try:
         explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(input_scaled)
+        shap_values = explainer.shap_values(input_data)
         shap.initjs()
         force_plot = shap.force_plot(
             explainer.expected_value,
             shap_values[0],
-            input_scaled[0],
-            feature_names=short_names,
+            input_data.iloc[0],
+            feature_names=feature_display_names,
             matplotlib=True,
             show=False
         )
@@ -261,7 +294,7 @@ if submitted:
     col_rec1, col_rec2 = st.columns(2)
     with col_rec1:
         st.warning(f"""
-        **⚠️ Fitur Terlemah:**  
+        **⚠️ Aspek Performa Terlemah:**  
         **{min_feat}** dengan skor **{min_val:.2f}**
         
         **Rekomendasi:**
@@ -269,10 +302,16 @@ if submitted:
         - Tetapkan target perbaikan minimum 0.7.
         - Pantau perkembangan secara mingguan.
         """)
+        if incidents > 5:
+            st.error(f"""
+            **🚨 Perhatian Khusus (Insiden Tinggi):**  
+            Ditemukan **{incidents} insiden**. 
+            Harus segera dilakukan evaluasi keselamatan dan kepatuhan operasional untuk meminimalkan gangguan lebih lanjut.
+            """)
     with col_rec2:
         if max_val >= 0.7:
             st.success(f"""
-            **✅ Fitur Terkuat:**  
+            **✅ Aspek Performa Terkuat:**  
             **{max_feat}** dengan skor **{max_val:.2f}**
             
             **Rekomendasi:**
@@ -282,8 +321,14 @@ if submitted:
         else:
             st.info(f"""
             **📌 Catatan:**  
-            Semua fitur masih di bawah standar (0.7).  
+            Semua aspek performa utama masih di bawah standar (0.7).  
             **Prioritas utama:** Perbaiki **{min_feat}** terlebih dahulu, lalu tingkatkan fitur lainnya secara bertahap.
+            """)
+        if past_risk > 0.6:
+            st.warning(f"""
+            **⚠️ Riwayat Risiko Tinggi:**  
+            Pemasok memiliki riwayat tingkat risiko tinggi (**{past_risk:.2f}**).
+            Diperlukan pengawasan ekstra ketat dan rencana kontinjensi cadangan.
             """)
     
     # ========== SIMPAN KE RIWAYAT ==========
@@ -297,6 +342,10 @@ if submitted:
                 'Quality': quality,
                 'Regulatory': regulatory,
                 'Sustainability': sustainability,
+                'Past Risk': past_risk,
+                'ERP Trans.': erp_transactions,
+                'Incidents': incidents,
+                'MCDM': mcdm_score,
                 'Prediksi': 'High' if prediksi == 1 else 'Low',
                 'Prob_High': proba_high
             }
@@ -332,11 +381,12 @@ st.sidebar.subheader("📌 Informasi Model")
 st.sidebar.info("""
 **⚙️ Spesifikasi Model:**
 - **Algoritma:** XGBoost
-- **Fitur:** 5 (Financial, Delivery, Quality, Regulatory, Sustainability)
-- **Data Latih:** 80% (dengan SMOTE)
+- **Fitur:** 9 Fitur Utama
+- **Data Latih:** 80%
 - **Data Uji:** 20%
-- **Akurasi:** ~95%
-- **AUC:** ~0.99
+- **Akurasi Test:** ~90%
+- **F1-Score Test:** ~91%
+- **AUC Test:** ~0.96
 
 **🔍 Interpretasi SHAP:**
 Nilai **merah** pada grafik SHAP berarti fitur tersebut **meningkatkan** risiko High.  
