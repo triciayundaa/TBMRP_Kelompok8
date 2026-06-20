@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Streamlit
+.streamlit/
+
+# File besar (opsional, kalau mau tetap diupload bisa dihapus)
+# *.pkl
+# *.csv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
